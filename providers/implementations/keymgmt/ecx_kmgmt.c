@@ -94,7 +94,7 @@ static void *x25519_new_key(void *provctx)
     if (!ossl_prov_is_running())
         return 0;
     return ossl_ecx_key_new(PROV_LIBCTX_OF(provctx), ECX_KEY_TYPE_X25519, 0,
-                            NULL);
+                            NULL, NULL);
 }
 
 static void *x448_new_key(void *provctx)
@@ -102,7 +102,7 @@ static void *x448_new_key(void *provctx)
     if (!ossl_prov_is_running())
         return 0;
     return ossl_ecx_key_new(PROV_LIBCTX_OF(provctx), ECX_KEY_TYPE_X448, 0,
-                            NULL);
+                            NULL, NULL);
 }
 
 static void *ed25519_new_key(void *provctx)
@@ -110,7 +110,7 @@ static void *ed25519_new_key(void *provctx)
     if (!ossl_prov_is_running())
         return 0;
     return ossl_ecx_key_new(PROV_LIBCTX_OF(provctx), ECX_KEY_TYPE_ED25519, 0,
-                            NULL);
+                            NULL, NULL);
 }
 
 static void *ed448_new_key(void *provctx)
@@ -118,7 +118,7 @@ static void *ed448_new_key(void *provctx)
     if (!ossl_prov_is_running())
         return 0;
     return ossl_ecx_key_new(PROV_LIBCTX_OF(provctx), ECX_KEY_TYPE_ED448, 0,
-                            NULL);
+                            NULL, NULL);
 }
 
 static int ecx_has(const void *keydata, int selection)
@@ -551,6 +551,7 @@ static const OSSL_PARAM *ecx_gen_settable_params(ossl_unused void *genctx,
     static OSSL_PARAM settable[] = {
         OSSL_PARAM_utf8_string(OSSL_PKEY_PARAM_GROUP_NAME, NULL, 0),
         OSSL_PARAM_utf8_string(OSSL_KDF_PARAM_PROPERTIES, NULL, 0),
+        OSSL_PARAM_utf8_string(OSSL_PKEY_PARAM_RSA_DIGEST, NULL, 0),
         OSSL_PARAM_END
     };
     return settable;
@@ -564,7 +565,7 @@ static void *ecx_gen(struct ecx_gen_ctx *gctx)
     if (gctx == NULL)
         return NULL;
     if ((key = ossl_ecx_key_new(gctx->libctx, gctx->type, 0,
-                                gctx->propq)) == NULL) {
+                                gctx->propq, NULL)) == NULL) { // TODO: Implement mdalg here?
         ERR_raise(ERR_LIB_PROV, ERR_R_MALLOC_FAILURE);
         return NULL;
     }
@@ -593,7 +594,7 @@ static void *ecx_gen(struct ecx_gen_ctx *gctx)
         break;
     case ECX_KEY_TYPE_ED25519:
         if (!ossl_ed25519_public_from_private(gctx->libctx, key->pubkey, privkey,
-                                              gctx->propq))
+                                              gctx->propq, key->mdalg))
             goto err;
         break;
     case ECX_KEY_TYPE_ED448:
@@ -712,7 +713,7 @@ static int ecx_key_pairwise_check(const ECX_KEY *ecx, int type)
         break;
     case ECX_KEY_TYPE_ED25519:
         if (!ossl_ed25519_public_from_private(ecx->libctx, pub, ecx->privkey,
-                                              ecx->propq))
+                                              ecx->propq, ecx->mdalg))
             return 0;
         break;
     case ECX_KEY_TYPE_ED448:
@@ -816,7 +817,7 @@ static void *s390x_ecx_keygen25519(struct ecx_gen_ctx *gctx)
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
     };
     ECX_KEY *key = ossl_ecx_key_new(gctx->libctx, ECX_KEY_TYPE_X25519, 1,
-                                    gctx->propq);
+                                    gctx->propq, NULL); // TODO: Implement mdalg here?
     unsigned char *privkey = NULL, *pubkey;
 
     if (key == NULL) {
@@ -862,7 +863,7 @@ static void *s390x_ecx_keygen448(struct ecx_gen_ctx *gctx)
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
     };
     ECX_KEY *key = ossl_ecx_key_new(gctx->libctx, ECX_KEY_TYPE_X448, 1,
-                                    gctx->propq);
+                                    gctx->propq, NULL); // TODO: Implement mdalg here?
     unsigned char *privkey = NULL, *pubkey;
 
     if (key == NULL) {
@@ -911,7 +912,7 @@ static void *s390x_ecd_keygen25519(struct ecx_gen_ctx *gctx)
     };
     unsigned char x_dst[32], buff[SHA512_DIGEST_LENGTH];
     ECX_KEY *key = ossl_ecx_key_new(gctx->libctx, ECX_KEY_TYPE_ED25519, 1,
-                                    gctx->propq);
+                                    gctx->propq, NULL); // TODO: Implement mdalg here?
     unsigned char *privkey = NULL, *pubkey;
     unsigned int sz;
     EVP_MD *sha = NULL;
@@ -979,7 +980,7 @@ static void *s390x_ecd_keygen448(struct ecx_gen_ctx *gctx)
     };
     unsigned char x_dst[57], buff[114];
     ECX_KEY *key = ossl_ecx_key_new(gctx->libctx, ECX_KEY_TYPE_ED448, 1,
-                                    gctx->propq);
+                                    gctx->propq, NULL); // TODO: Implement mdalg here?
     unsigned char *privkey = NULL, *pubkey;
     EVP_MD_CTX *hashctx = NULL;
     EVP_MD *shake = NULL;

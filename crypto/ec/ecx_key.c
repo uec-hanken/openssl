@@ -9,10 +9,11 @@
 
 #include <string.h>
 #include <openssl/err.h>
+#include <openssl/obj_mac.h>
 #include "crypto/ecx.h"
 
 ECX_KEY *ossl_ecx_key_new(OSSL_LIB_CTX *libctx, ECX_KEY_TYPE type, int haspubkey,
-                          const char *propq)
+                          const char *propq, const char *mdalg)
 {
     ECX_KEY *ret = OPENSSL_zalloc(sizeof(*ret));
 
@@ -41,6 +42,17 @@ ECX_KEY *ossl_ecx_key_new(OSSL_LIB_CTX *libctx, ECX_KEY_TYPE type, int haspubkey
     if (propq != NULL) {
         ret->propq = OPENSSL_strdup(propq);
         if (ret->propq == NULL)
+            goto err;
+    }
+
+    if (mdalg != NULL) {
+        ret->mdalg = OPENSSL_strdup(mdalg);
+        if (ret->mdalg == NULL)
+            goto err;
+    }
+    else {
+        ret->mdalg = OPENSSL_strdup(SN_sha512);
+        if (ret->mdalg == NULL)
             goto err;
     }
 

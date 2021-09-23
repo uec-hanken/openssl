@@ -33,7 +33,7 @@ int ossl_ecx_public_from_private(ECX_KEY *key)
         break;
     case ECX_KEY_TYPE_ED25519:
         if (!ossl_ed25519_public_from_private(key->libctx, key->pubkey,
-                                              key->privkey, key->propq)) {
+                                              key->privkey, key->propq, key->mdalg)) {
             ERR_raise(ERR_LIB_EC, EC_R_FAILED_MAKING_PUBLIC_KEY);
             return 0;
         }
@@ -144,7 +144,7 @@ err:
 ECX_KEY *ossl_ecx_key_op(const X509_ALGOR *palg,
                          const unsigned char *p, int plen,
                          int id, ecx_key_op_t op,
-                         OSSL_LIB_CTX *libctx, const char *propq)
+                         OSSL_LIB_CTX *libctx, const char *propq, const char *mdalg)
 {
     ECX_KEY *key = NULL;
     unsigned char *privkey, *pubkey;
@@ -173,7 +173,7 @@ ECX_KEY *ossl_ecx_key_op(const X509_ALGOR *palg,
         }
     }
 
-    key = ossl_ecx_key_new(libctx, KEYNID2TYPE(id), 1, propq);
+    key = ossl_ecx_key_new(libctx, KEYNID2TYPE(id), 1, propq, mdalg);
     if (key == NULL) {
         ERR_raise(ERR_LIB_EC, ERR_R_MALLOC_FAILURE);
         return 0;
@@ -242,7 +242,7 @@ ECX_KEY *ossl_ecx_key_from_pkcs8(const PKCS8_PRIV_KEY_INFO *p8inf,
      * on its own.
      */
     ecx = ossl_ecx_key_op(palg, p, plen, EVP_PKEY_NONE, KEY_OP_PRIVATE,
-                          libctx, propq);
+                          libctx, propq, NULL);
     ASN1_OCTET_STRING_free(oct);
     return ecx;
 }

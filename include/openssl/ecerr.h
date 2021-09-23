@@ -97,6 +97,7 @@
 #  define EC_R_UNSUPPORTED_FIELD                           131
 #  define EC_R_WRONG_CURVE_PARAMETERS                      145
 #  define EC_R_WRONG_ORDER                                 130
+#  define EC_R_VALUE_MISSING                               190
 
 # endif
 #endif

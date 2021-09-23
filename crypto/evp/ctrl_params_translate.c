@@ -2043,6 +2043,14 @@ static const struct translation_st evp_pkey_ctx_translations[] = {
       OSSL_PKEY_PARAM_FFC_DIGEST, OSSL_PARAM_UTF8_STRING, fix_md },
 
     /*-
+     * ECX
+     * ==
+     */
+    { SET, EVP_PKEY_ED25519, 0, EVP_PKEY_OP_TYPE_GEN,
+      EVP_PKEY_CTRL_MD, "ed25519_md", NULL,
+      OSSL_ALG_PARAM_DIGEST, OSSL_PARAM_UTF8_STRING, NULL },
+
+    /*-
      * EC
      * ==
      */

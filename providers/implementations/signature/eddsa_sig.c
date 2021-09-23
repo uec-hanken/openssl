@@ -160,7 +160,7 @@ int ed25519_digest_sign(void *vpeddsactx, unsigned char *sigret,
         return s390x_ed25519_digestsign(edkey, sigret, tbs, tbslen);
 #endif /* S390X_EC_ASM */
     if (ossl_ed25519_sign(sigret, tbs, tbslen, edkey->pubkey, edkey->privkey,
-                          peddsactx->libctx, NULL) == 0) {
+                          peddsactx->libctx, NULL, edkey->mdalg) == 0) {
         ERR_raise(ERR_LIB_PROV, PROV_R_FAILED_TO_SIGN);
         return 0;
     }
@@ -215,7 +215,7 @@ int ed25519_digest_verify(void *vpeddsactx, const unsigned char *sig,
 #endif /* S390X_EC_ASM */
 
     return ossl_ed25519_verify(tbs, tbslen, sig, edkey->pubkey,
-                               peddsactx->libctx, edkey->propq);
+                               peddsactx->libctx, edkey->propq, edkey->mdalg);
 }
 
 int ed448_digest_verify(void *vpeddsactx, const unsigned char *sig,

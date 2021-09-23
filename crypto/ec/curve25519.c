@@ -5442,13 +5442,13 @@ static void sc_muladd(uint8_t *s, const uint8_t *a, const uint8_t *b,
 int
 ossl_ed25519_sign(uint8_t *out_sig, const uint8_t *message, size_t message_len,
                   const uint8_t public_key[32], const uint8_t private_key[32],
-                  OSSL_LIB_CTX *libctx, const char *propq)
+                  OSSL_LIB_CTX *libctx, const char *propq, const char *mdalg)
 {
     uint8_t az[SHA512_DIGEST_LENGTH];
     uint8_t nonce[SHA512_DIGEST_LENGTH];
     ge_p3 R;
     uint8_t hram[SHA512_DIGEST_LENGTH];
-    EVP_MD *sha512 = EVP_MD_fetch(libctx, SN_sha512, propq);
+    EVP_MD *sha512 = EVP_MD_fetch(libctx, mdalg, propq);
     EVP_MD_CTX *hash_ctx = EVP_MD_CTX_new();
     unsigned int sz;
     int res = 0;
@@ -5499,7 +5499,7 @@ static const char allzeroes[15];
 int
 ossl_ed25519_verify(const uint8_t *message, size_t message_len,
                     const uint8_t signature[64], const uint8_t public_key[32],
-                    OSSL_LIB_CTX *libctx, const char *propq)
+                    OSSL_LIB_CTX *libctx, const char *propq, const char *mdalg)
 {
     int i;
     ge_p3 A;
@@ -5554,7 +5554,7 @@ ossl_ed25519_verify(const uint8_t *message, size_t message_len,
     fe_neg(A.X, A.X);
     fe_neg(A.T, A.T);
 
-    sha512 = EVP_MD_fetch(libctx, SN_sha512, propq);
+    sha512 = EVP_MD_fetch(libctx, mdalg, propq);
     if (sha512 == NULL)
         return 0;
     hash_ctx = EVP_MD_CTX_new();
@@ -5584,14 +5584,14 @@ err:
 int
 ossl_ed25519_public_from_private(OSSL_LIB_CTX *ctx, uint8_t out_public_key[32],
                                  const uint8_t private_key[32],
-                                 const char *propq)
+                                 const char *propq, const char *mdalg)
 {
     uint8_t az[SHA512_DIGEST_LENGTH];
     ge_p3 A;
     int r;
     EVP_MD *sha512 = NULL;
 
-    sha512 = EVP_MD_fetch(ctx, SN_sha512, propq);
+    sha512 = EVP_MD_fetch(ctx, mdalg, propq);
     if (sha512 == NULL)
         return 0;
     r = EVP_Digest(private_key, 32, az, NULL, sha512, NULL);

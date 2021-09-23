@@ -28,6 +28,11 @@
 #include "curve448/curve448_local.h"
 #include "ecx_backend.h"
 
+typedef struct {
+    /* Hash algorithm to use */
+    char* mdalg;
+} ECX_PKEY_CTX;
+
 static int ecx_pub_encode(X509_PUBKEY *pk, const EVP_PKEY *pkey)
 {
     const ECX_KEY *ecxkey = pkey->pkey.ecx;
@@ -64,7 +69,7 @@ static int ecx_pub_decode(EVP_PKEY *pkey, const X509_PUBKEY *pubkey)
     if (!X509_PUBKEY_get0_param(NULL, &p, &pklen, &palg, pubkey))
         return 0;
     ecx = ossl_ecx_key_op(palg, p, pklen, pkey->ameth->pkey_id,
-                          KEY_OP_PUBLIC, NULL, NULL);
+                          KEY_OP_PUBLIC, NULL, NULL, NULL);
     if (ecx != NULL) {
         ret = 1;
         EVP_PKEY_assign(pkey, pkey->ameth->pkey_id, ecx);
@@ -220,7 +225,7 @@ static int ecx_ctrl(EVP_PKEY *pkey, int op, long arg1, void *arg2)
 
     case ASN1_PKEY_CTRL_SET1_TLS_ENCPT: {
         ECX_KEY *ecx = ossl_ecx_key_op(NULL, arg2, arg1, pkey->ameth->pkey_id,
-                                       KEY_OP_PUBLIC, NULL, NULL);
+                                       KEY_OP_PUBLIC, NULL, NULL, NULL);
 
         if (ecx != NULL) {
             EVP_PKEY_assign(pkey, pkey->ameth->pkey_id, ecx);
@@ -268,7 +273,7 @@ static int ecx_set_priv_key(EVP_PKEY *pkey, const unsigned char *priv,
         libctx = ossl_provider_libctx(EVP_KEYMGMT_get0_provider(pkey->keymgmt));
 
     ecx = ossl_ecx_key_op(NULL, priv, len, pkey->ameth->pkey_id,
-                          KEY_OP_PRIVATE, libctx, NULL);
+                          KEY_OP_PRIVATE, libctx, NULL, NULL);
 
     if (ecx != NULL) {
         EVP_PKEY_assign(pkey, pkey->ameth->pkey_id, ecx);
@@ -286,7 +291,7 @@ static int ecx_set_pub_key(EVP_PKEY *pkey, const unsigned char *pub, size_t len)
         libctx = ossl_provider_libctx(EVP_KEYMGMT_get0_provider(pkey->keymgmt));
 
     ecx = ossl_ecx_key_op(NULL, pub, len, pkey->ameth->pkey_id,
-                          KEY_OP_PUBLIC, libctx, NULL);
+                          KEY_OP_PUBLIC, libctx, NULL, NULL);
 
     if (ecx != NULL) {
         EVP_PKEY_assign(pkey, pkey->ameth->pkey_id, ecx);
@@ -389,7 +394,7 @@ static int ecx_generic_import_from(const OSSL_PARAM params[], void *vpctx,
     EVP_PKEY_CTX *pctx = vpctx;
     EVP_PKEY *pkey = EVP_PKEY_CTX_get0_pkey(pctx);
     ECX_KEY *ecx = ossl_ecx_key_new(pctx->libctx, KEYNID2TYPE(keytype), 0,
-                                    pctx->propquery);
+                                    pctx->propquery, NULL);
 
     if (ecx == NULL) {
         ERR_raise(ERR_LIB_DH, ERR_R_MALLOC_FAILURE);
@@ -711,8 +716,9 @@ const EVP_PKEY_ASN1_METHOD ossl_ed448_asn1_meth = {
 
 static int pkey_ecx_keygen(EVP_PKEY_CTX *ctx, EVP_PKEY *pkey)
 {
+    ECX_PKEY_CTX *rctx = ctx->data;
     ECX_KEY *ecx = ossl_ecx_key_op(NULL, NULL, 0, ctx->pmeth->pkey_id,
-                                   KEY_OP_PUBLIC, NULL, NULL);
+                                   KEY_OP_PUBLIC, NULL, NULL, rctx->mdalg);
 
     if (ecx != NULL) {
         EVP_PKEY_assign(pkey, ctx->pmeth->pkey_id, ecx);
@@ -806,6 +812,7 @@ static int pkey_ecd_digestsign25519(EVP_MD_CTX *ctx, unsigned char *sig,
                                     size_t *siglen, const unsigned char *tbs,
                                     size_t tbslen)
 {
+    // TODO: ECX_PKEY_CTX *rctx = ctx->data;
     const ECX_KEY *edkey = evp_pkey_get_legacy(EVP_MD_CTX_get_pkey_ctx(ctx)->pkey);
 
     if (sig == NULL) {
@@ -818,7 +825,7 @@ static int pkey_ecd_digestsign25519(EVP_MD_CTX *ctx, unsigned char *sig,
     }
 
     if (ossl_ed25519_sign(sig, tbs, tbslen, edkey->pubkey, edkey->privkey, NULL,
-                          NULL) == 0)
+                          NULL, NULL) == 0)
         return 0;
     *siglen = ED25519_SIGSIZE;
     return 1;
@@ -850,13 +857,14 @@ static int pkey_ecd_digestverify25519(EVP_MD_CTX *ctx, const unsigned char *sig,
                                       size_t siglen, const unsigned char *tbs,
                                       size_t tbslen)
 {
+    // TODO: ECX_PKEY_CTX *rctx = ctx->data;
     const ECX_KEY *edkey = evp_pkey_get_legacy(EVP_MD_CTX_get_pkey_ctx(ctx)->pkey);
 
     if (siglen != ED25519_SIGSIZE)
         return 0;
 
     return ossl_ed25519_verify(tbs, tbslen, sig, edkey->pubkey,
-                               edkey->libctx, edkey->propq);
+                               edkey->libctx, edkey->propq, NULL);
 }
 
 static int pkey_ecd_digestverify448(EVP_MD_CTX *ctx, const unsigned char *sig,
@@ -874,6 +882,7 @@ static int pkey_ecd_digestverify448(EVP_MD_CTX *ctx, const unsigned char *sig,
 
 static int pkey_ecd_ctrl(EVP_PKEY_CTX *ctx, int type, int p1, void *p2)
 {
+    ECX_PKEY_CTX *rctx = ctx->data;
     switch (type) {
     case EVP_PKEY_CTRL_MD:
         /* Only NULL allowed as digest */
@@ -882,19 +891,85 @@ static int pkey_ecd_ctrl(EVP_PKEY_CTX *ctx, int type, int p1, void *p2)
         ERR_raise(ERR_LIB_EC, EC_R_INVALID_DIGEST_TYPE);
         return 0;
 
-    case EVP_PKEY_CTRL_DIGESTINIT:
-        return 1;
+    case EVP_PKEY_CTRL_ECX_MD:
+        switch(p1) {
+        case ED25519_MD_SHA512:
+            rctx->mdalg = SN_sha512;
+            return 1;
+        case ED25519_MD_SHA3_512:
+            rctx->mdalg = SN_sha3_512;
+            return 1;
+        }
+        ERR_raise(ERR_LIB_EC, EC_R_INVALID_DIGEST_TYPE);
+        return 0;
     }
     return -2;
 }
 
+static int pkey_ecd_ctrl_str(EVP_PKEY_CTX *ctx,
+                             const char *type, const char *value)
+{
+    if (value == NULL) {
+        ERR_raise(ERR_LIB_EC, EC_R_VALUE_MISSING);
+        return 0;
+    }
+    
+    if (strcmp(type, "ed25519_md") == 0) {
+        int pm;
+
+        if (strcmp(value, "SHA512") == 0) {
+            pm = ED25519_MD_SHA512;
+        } else if (strcmp(value, "SHA3-512") == 0) {
+            pm = ED25519_MD_SHA3_512;
+        } else {
+            ERR_raise(ERR_LIB_RSA, EC_R_UNSUPPORTED_FIELD);
+            return -2;
+        }
+        return pkey_ecd_ctrl(ctx, EVP_PKEY_CTRL_ECX_MD, pm, NULL);
+    }
+
+    return -2;
+}
+
+static int pkey_ecx_init(EVP_PKEY_CTX *ctx)
+{
+    ECX_PKEY_CTX *rctx = OPENSSL_zalloc(sizeof(*rctx));
+
+    if (rctx == NULL)
+        return 0;
+    rctx->mdalg = NULL;
+    ctx->data = rctx;
+
+    return 1;
+}
+
+static int pkey_ecx_copy(EVP_PKEY_CTX *dst, const EVP_PKEY_CTX *src)
+{
+    ECX_PKEY_CTX *dctx, *sctx;
+    if (!pkey_ecx_init(dst))
+        return 0;
+    sctx = src->data;
+    dctx = dst->data;
+    dctx->mdalg = sctx->mdalg;
+    
+    return 1;
+}
+
+static void pkey_ecx_cleanup(EVP_PKEY_CTX *ctx)
+{
+    // TODO: Nothing yet
+}
+
 static const EVP_PKEY_METHOD ed25519_pkey_meth = {
     EVP_PKEY_ED25519, EVP_PKEY_FLAG_SIGCTX_CUSTOM,
-    0, 0, 0, 0, 0, 0,
+    pkey_ecx_init, 
+    pkey_ecx_copy, 
+    pkey_ecx_cleanup, 
+    0, 0, 0,
     pkey_ecx_keygen,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     pkey_ecd_ctrl,
-    0,
+    pkey_ecd_ctrl_str,
     pkey_ecd_digestsign25519,
     pkey_ecd_digestverify25519
 };
@@ -921,7 +996,7 @@ static int s390x_pkey_ecx_keygen25519(EVP_PKEY_CTX *ctx, EVP_PKEY *pkey)
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
     };
     ECX_KEY *key = ossl_ecx_key_new(ctx->libctx, ECX_KEY_TYPE_X25519, 1,
-                                    ctx->propquery);
+                                    ctx->propquery, NULL);
     unsigned char *privkey = NULL, *pubkey;
 
     if (key == NULL) {
@@ -964,7 +1039,7 @@ static int s390x_pkey_ecx_keygen448(EVP_PKEY_CTX *ctx, EVP_PKEY *pkey)
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
     };
     ECX_KEY *key = ossl_ecx_key_new(ctx->libctx, ECX_KEY_TYPE_X448, 1,
-                                    ctx->propquery);
+                                    ctx->propquery, NULL);
     unsigned char *privkey = NULL, *pubkey;
 
     if (key == NULL) {
@@ -1010,7 +1085,7 @@ static int s390x_pkey_ecd_keygen25519(EVP_PKEY_CTX *ctx, EVP_PKEY *pkey)
     };
     unsigned char x_dst[32], buff[SHA512_DIGEST_LENGTH];
     ECX_KEY *key = ossl_ecx_key_new(ctx->libctx, ECX_KEY_TYPE_ED25519, 1,
-                                    ctx->propquery);
+                                    ctx->propquery, NULL);
     unsigned char *privkey = NULL, *pubkey;
     unsigned int sz;
     EVP_MD *md = NULL;
@@ -1076,7 +1151,7 @@ static int s390x_pkey_ecd_keygen448(EVP_PKEY_CTX *ctx, EVP_PKEY *pkey)
     };
     unsigned char x_dst[57], buff[114];
     ECX_KEY *key = ossl_ecx_key_new(ctx->libctx, ECX_KEY_TYPE_ED448, 1,
-                                    ctx->propquery);
+                                    ctx->propquery, NULL);
     unsigned char *privkey = NULL, *pubkey;
     EVP_MD_CTX *hashctx = NULL;
     EVP_MD *md = NULL;

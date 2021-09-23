@@ -46,6 +46,12 @@
 #  define ED448_SECURITY_BITS   224
 #  define ED448_SIGSIZE         114
 
+/* Added because of Keystone */
+#  define ED25519_MD_SHA512     0
+#  define ED25519_MD_SHA3_512   1
+
+# define EVP_PKEY_CTRL_ECX_MD            (EVP_PKEY_ALG_CTRL + 1)
+
 
 typedef enum {
     ECX_KEY_TYPE_X25519,
@@ -66,6 +72,7 @@ typedef enum {
 struct ecx_key_st {
     OSSL_LIB_CTX *libctx;
     char *propq;
+    char *mdalg;
     unsigned int haspubkey:1;
     unsigned char pubkey[MAX_KEYLEN];
     unsigned char *privkey;
@@ -77,7 +84,7 @@ struct ecx_key_st {
 
 size_t ossl_ecx_key_length(ECX_KEY_TYPE type);
 ECX_KEY *ossl_ecx_key_new(OSSL_LIB_CTX *libctx, ECX_KEY_TYPE type,
-                          int haspubkey, const char *propq);
+                          int haspubkey, const char *propq, const char *mdalg);
 void ossl_ecx_key_set0_libctx(ECX_KEY *key, OSSL_LIB_CTX *libctx);
 unsigned char *ossl_ecx_key_allocate_privkey(ECX_KEY *key);
 void ossl_ecx_key_free(ECX_KEY *key);
@@ -92,15 +99,15 @@ void ossl_x25519_public_from_private(uint8_t out_public_value[32],
 int
 ossl_ed25519_public_from_private(OSSL_LIB_CTX *ctx, uint8_t out_public_key[32],
                                  const uint8_t private_key[32],
-                                 const char *propq);
+                                 const char *propq, const char *mdalg);
 int
 ossl_ed25519_sign(uint8_t *out_sig, const uint8_t *message, size_t message_len,
                   const uint8_t public_key[32], const uint8_t private_key[32],
-                  OSSL_LIB_CTX *libctx, const char *propq);
+                  OSSL_LIB_CTX *libctx, const char *propq, const char *mdalg);
 int
 ossl_ed25519_verify(const uint8_t *message, size_t message_len,
                     const uint8_t signature[64], const uint8_t public_key[32],
-                    OSSL_LIB_CTX *libctx, const char *propq);
+                    OSSL_LIB_CTX *libctx, const char *propq, const char *mdalg);
 
 int
 ossl_ed448_public_from_private(OSSL_LIB_CTX *ctx, uint8_t out_public_key[57],
@@ -134,7 +141,7 @@ typedef enum {
 ECX_KEY *ossl_ecx_key_op(const X509_ALGOR *palg,
                          const unsigned char *p, int plen,
                          int pkey_id, ecx_key_op_t op,
-                         OSSL_LIB_CTX *libctx, const char *propq);
+                         OSSL_LIB_CTX *libctx, const char *propq, const char *mdalg);
 
 int ossl_ecx_public_from_private(ECX_KEY *key);
 int ossl_ecx_key_fromdata(ECX_KEY *ecx, const OSSL_PARAM params[],
