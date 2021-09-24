@@ -148,14 +148,21 @@ ECX_KEY *ossl_ecx_key_op(const X509_ALGOR *palg,
 {
     ECX_KEY *key = NULL;
     unsigned char *privkey, *pubkey;
+    char* mdalgout = mdalg;
+    int ptype = 0;
+    const void *pval = NULL;
 
     if (op != KEY_OP_KEYGEN) {
         if (palg != NULL) {
             int ptype;
 
             /* Algorithm parameters must be absent */
-            X509_ALGOR_get0(NULL, &ptype, NULL, palg);
-            if (ptype != V_ASN1_UNDEF) {
+            X509_ALGOR_get0(NULL, &ptype, &pval, palg);
+            if (ptype == V_ASN1_OBJECT) {
+                const ASN1_OBJECT *poid = pval;
+                mdalgout = OBJ_obj2nid(poid);
+            }
+            else if (ptype != V_ASN1_UNDEF) {
                 ERR_raise(ERR_LIB_EC, EC_R_INVALID_ENCODING);
                 return 0;
             }

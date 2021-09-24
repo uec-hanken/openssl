@@ -745,7 +745,30 @@ static int ec_pki_priv_to_der(const void *veckey, unsigned char **pder)
 /* ---------------------------------------------------------------------- */
 
 #ifndef OPENSSL_NO_EC
-# define prepare_ecx_params NULL
+//# define prepare_ecx_params NULL
+
+static int prepare_ecx_params(const void *vecxkey, int nid, int save,
+                             void **pstr, int *pstrtype)
+{
+    const ECX_KEY *ecxkey = vecxkey;
+    ASN1_OBJECT *params = NULL;
+
+    int this_nid = OBJ_txt2nid(ecxkey->mdalg);
+    if (this_nid == NID_undef)
+        return 0;
+    
+    params = OBJ_nid2obj(this_nid);
+    if (params == NULL)
+        return 0;
+    
+    *pstr = params;
+    *pstrtype = V_ASN1_OBJECT;
+    // TODO: The above is possible, but because is an object, probably is
+    // searching for an object that does not exist. We will come back, but 
+    // for now, is just a string.
+    
+    return 1;
+}
 
 static int ecx_spki_pub_to_der(const void *vecxkey, unsigned char **pder)
 {

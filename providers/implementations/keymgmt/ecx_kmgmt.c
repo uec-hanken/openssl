@@ -78,6 +78,7 @@ static OSSL_FUNC_keymgmt_dup_fn ecx_dup;
 struct ecx_gen_ctx {
     OSSL_LIB_CTX *libctx;
     char *propq;
+    char *mdalg;
     ECX_KEY_TYPE type;
     int selection;
 };
@@ -227,6 +228,14 @@ static int ecx_export(void *keydata, int selection, OSSL_CALLBACK *param_cb,
     tmpl = OSSL_PARAM_BLD_new();
     if (tmpl == NULL)
         return 0;
+
+    if (key->mdalg == NULL
+        || !ossl_param_build_set_utf8_string(tmpl, params,
+                                             OSSL_PKEY_PARAM_GROUP_NAME,
+                                             key->mdalg)) {
+        //ERR_raise(ERR_LIB_EC, EC_R_INVALID_CURVE);
+        goto err;
+    }
 
     if ((selection & OSSL_KEYMGMT_SELECT_KEYPAIR) != 0
          && !key_to_params(key, tmpl, NULL))
@@ -414,12 +423,12 @@ static int x448_set_params(void *key, const OSSL_PARAM params[])
 
 static int ed25519_set_params(void *key, const OSSL_PARAM params[])
 {
-    return 1;
+    return ecx_set_params(key, params);
 }
 
 static int ed448_set_params(void *key, const OSSL_PARAM params[])
 {
-    return 1;
+    return ecx_set_params(key, params);
 }
 
 static const OSSL_PARAM ecx_settable_params[] = {
@@ -444,12 +453,12 @@ static const OSSL_PARAM *x448_settable_params(void *provctx)
 
 static const OSSL_PARAM *ed25519_settable_params(void *provctx)
 {
-    return ed_settable_params;
+    return ecx_settable_params;
 }
 
 static const OSSL_PARAM *ed448_settable_params(void *provctx)
 {
-    return ed_settable_params;
+    return ecx_settable_params;
 }
 
 static void *ecx_gen_init(void *provctx, int selection,
@@ -541,6 +550,15 @@ static int ecx_gen_set_params(void *genctx, const OSSL_PARAM params[])
         if (gctx->propq == NULL)
             return 0;
     }
+    p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_DIGEST);
+    if (p != NULL) {
+        if (p->data_type != OSSL_PARAM_UTF8_STRING)
+            return 0;
+        OPENSSL_free(gctx->mdalg);
+        gctx->mdalg = OPENSSL_strdup(p->data);
+        if (gctx->mdalg == NULL)
+            return 0;
+    }
 
     return 1;
 }
@@ -551,10 +569,54 @@ static const OSSL_PARAM *ecx_gen_settable_params(ossl_unused void *genctx,
     static OSSL_PARAM settable[] = {
         OSSL_PARAM_utf8_string(OSSL_PKEY_PARAM_GROUP_NAME, NULL, 0),
         OSSL_PARAM_utf8_string(OSSL_KDF_PARAM_PROPERTIES, NULL, 0),
-        OSSL_PARAM_utf8_string(OSSL_PKEY_PARAM_RSA_DIGEST, NULL, 0),
+        OSSL_PARAM_utf8_string(OSSL_PKEY_PARAM_DIGEST, NULL, 0),
         OSSL_PARAM_END
     };
     return settable;
+}
+
+static int ecx_gen_set_mdalg_from_params(struct ecx_gen_ctx *gctx)
+{
+    int ret = 0;
+    const OSSL_PARAM *p;
+    OSSL_PARAM_BLD *bld;
+    OSSL_PARAM *params = NULL;
+
+    if (gctx == NULL)
+        return 0;
+
+    bld = OSSL_PARAM_BLD_new();
+    if (bld == NULL)
+        return 0;
+
+    if (gctx->mdalg != NULL
+        && !OSSL_PARAM_BLD_push_utf8_string(bld, OSSL_PKEY_PARAM_DIGEST,
+                                             gctx->mdalg, 0))
+            goto err;
+    
+    params = OSSL_PARAM_BLD_to_param(bld);
+    if (params == NULL)
+        goto err;
+    
+    p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_DIGEST);
+    if (p != NULL) {
+        if (p->data_type != OSSL_PARAM_UTF8_STRING)
+            goto err;
+        OPENSSL_free(gctx->mdalg);
+        gctx->mdalg = OPENSSL_strdup(p->data);
+        if (gctx->mdalg == NULL)
+            goto err;
+    } else {
+        gctx->mdalg = OPENSSL_strdup(SN_sha512);
+        if (gctx->mdalg == NULL)
+            goto err;
+    }
+    
+    ret = 1;
+err:
+    OSSL_PARAM_free(params);
+    OSSL_PARAM_BLD_free(bld);
+    return ret;
 }
 
 static void *ecx_gen(struct ecx_gen_ctx *gctx)
@@ -564,8 +626,13 @@ static void *ecx_gen(struct ecx_gen_ctx *gctx)
 
     if (gctx == NULL)
         return NULL;
+    
+    if(gctx->mdalg == NULL) {
+        ecx_gen_set_mdalg_from_params(gctx);
+    }
+    
     if ((key = ossl_ecx_key_new(gctx->libctx, gctx->type, 0,
-                                gctx->propq, NULL)) == NULL) { // TODO: Implement mdalg here?
+                                gctx->propq, gctx->mdalg)) == NULL) { // TODO: Implement mdalg here?
         ERR_raise(ERR_LIB_PROV, ERR_R_MALLOC_FAILURE);
         return NULL;
     }
