@@ -151,6 +151,7 @@ ECX_KEY *ossl_ecx_key_op(const X509_ALGOR *palg,
     char* mdalgout = mdalg;
     int ptype = 0;
     const void *pval = NULL;
+    char mdalgbuf[16];
 
     if (op != KEY_OP_KEYGEN) {
         if (palg != NULL) {
@@ -160,7 +161,8 @@ ECX_KEY *ossl_ecx_key_op(const X509_ALGOR *palg,
             X509_ALGOR_get0(NULL, &ptype, &pval, palg);
             if (ptype == V_ASN1_OBJECT) {
                 const ASN1_OBJECT *poid = pval;
-                mdalgout = OBJ_obj2nid(poid);
+                OBJ_obj2txt(mdalgbuf, 16, poid, 0);
+                mdalgout = mdalgbuf;
             }
             else if (ptype != V_ASN1_UNDEF) {
                 ERR_raise(ERR_LIB_EC, EC_R_INVALID_ENCODING);
@@ -180,7 +182,7 @@ ECX_KEY *ossl_ecx_key_op(const X509_ALGOR *palg,
         }
     }
 
-    key = ossl_ecx_key_new(libctx, KEYNID2TYPE(id), 1, propq, mdalg);
+    key = ossl_ecx_key_new(libctx, KEYNID2TYPE(id), 1, propq, mdalgout);
     if (key == NULL) {
         ERR_raise(ERR_LIB_EC, ERR_R_MALLOC_FAILURE);
         return 0;

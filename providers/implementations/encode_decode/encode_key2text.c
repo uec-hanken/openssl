@@ -611,6 +611,8 @@ static int ecx_to_text(BIO *out, const void *key, int selection)
 
     if (BIO_printf(out, "%s:\n", type_label) <= 0)
         return 0;
+    if (BIO_printf(out, "MD %s:\n", ecx->mdalg) <= 0)
+        return 0;
     if ((selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) != 0
         && !print_labeled_buf(out, "priv:", ecx->privkey, ecx->keylen))
         return 0;
